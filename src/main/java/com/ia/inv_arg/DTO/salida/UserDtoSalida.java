@@ -1,12 +1,14 @@
 package com.ia.inv_arg.DTO.salida;
 
 import com.ia.inv_arg.entity.Article;
+import com.ia.inv_arg.entity.Role;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.OneToMany;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Set;
 
 @Data
 @NoArgsConstructor
@@ -16,7 +18,9 @@ public class UserDtoSalida {
     private String firstname;
     private String lastname;
     private String email;
-    private List<ArticleAuthorSalidaDto> articlesSalida;
+    private Set<ArticleAuthorSalidaDto> articlesSalida;
+    private Set<Role> roles;
+
 
 
     public String getUsername() {

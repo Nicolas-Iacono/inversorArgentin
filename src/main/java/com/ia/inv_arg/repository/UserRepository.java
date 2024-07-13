@@ -1,5 +1,6 @@
 package com.ia.inv_arg.repository;
 
+import com.ia.inv_arg.DTO.salida.UserDtoSalida;
 import com.ia.inv_arg.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -13,5 +14,5 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByUsername(String username);
 
-    User findByUsername(String username);
+    Optional<User> findUserByUsername(String username);
 }

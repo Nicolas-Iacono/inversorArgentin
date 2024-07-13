@@ -1,6 +1,7 @@
 package com.ia.inv_arg.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -10,6 +11,7 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 
 @Data
 @Table(name = "article")
@@ -41,6 +43,9 @@ public class Article {
     @JsonManagedReference
     private List<Comment> comments;
 
+    @OneToMany(mappedBy = "article", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnoreProperties("article")
+    private Set<Favourites> favourites;
 
     public Long getId() {
         return id;

@@ -18,7 +18,7 @@ public interface IUserService {
 
     List<UserDtoSalida> listarUsuarios();
 
-    UserDtoSalida registrarUsuario(UserDTO usuario);
+    TokenSalidaDto registrarUsuario(UserDTO usuario);
 
 //    TokenSalidaDto createUser(UserDTO usuario) throws DataIntegrityViolationException;
 //
@@ -31,6 +31,8 @@ public interface IUserService {
     UserDtoSalida actualizarUsuario(UserModificacionEntradaDTO usuario);
 
     UserDtoSalida buscarUsuarioPorEmail(String email);
+
+    TokenSalidaDto registrarAdmin(UserAdminEntradaDto userAdminEntradaDto);
 
 //    TokenSalidaDto loginUserAndCheckEmail(LoginEntradaDto loginDtoEntrance) throws ResourceNotFoundException;
 }

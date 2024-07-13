@@ -14,7 +14,9 @@ import com.ia.inv_arg.repository.UserRepository;
 import com.ia.inv_arg.service.IUserService;
 import com.ia.inv_arg.utils.JsonPrinter;
 import com.ia.inv_arg.utils.RoleConstants;
+import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
+import org.hibernate.Hibernate;
 import org.modelmapper.ModelMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,22 +30,25 @@ import org.springframework.dao.DataIntegrityViolationException;
 //import org.springframework.security.core.userdetails.UserDetails;
 //import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 //import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 
 @Service
-public class UserService implements IUserService {
+public class UserService implements IUserService, UserDetailsService {
 
     private final Logger LOGGER = LoggerFactory.getLogger(UserService.class);
     @Autowired
     private UserRepository userRepository;
-//    private AuthenticationManager authenticationManager;
-//    private JwtService jwtService;
-//    @Autowired
-//    private PasswordEncoder passwordEncoder;
-//    @Autowired
-//    private RolRepository rolRepository;
+
+    @Autowired
+    private EntityManager entityManager;
+    @Autowired
+    private RolRepository rolRepository;
     private ModelMapper modelMapper;
 
 //    private JwtService jwtService;
@@ -61,124 +66,70 @@ public class UserService implements IUserService {
                 .toList();
         return usuarioSalidaDto;
     }
-
+    @Transactional
     @Override
-    public UserDtoSalida registrarUsuario(UserDTO usuario) {
-
-        if(userRepository.existsByUsername(usuario.getUsername())){
-            throw new RuntimeException("el username ya se encuentra registrado");
+    public TokenSalidaDto registrarUsuario(UserDTO usuario) {
+        if (userRepository.existsByUsername(usuario.getUsername())) {
+            throw new RuntimeException("El username ya se encuentra registrado");
         }
-        //convertimos mediante el mapper de dtoEntrada a entidad
+
         LOGGER.info("UsuarioEntradaDto: " + JsonPrinter.toString(usuario));
+
+        // Mapea el DTO de entrada a la entidad User
         User usuarioEntidad = modelMapper.map(usuario, User.class);
 
+        // Asigna el rol ADMIN al usuario
+        Role userRole = rolRepository.findByRol(RoleConstants.USER)
+                .orElseGet(() -> new Role(RoleConstants.USER));
 
-        //mandamos a persistir a la capa dao y obtenemos una entidad
+        if (userRole.getIdRol() == null) {
+            userRole = rolRepository.save(userRole);  // Guarda el rol si no existe
+        }
+
+        // Asegúrate de que el rol esté gestionado por el EntityManager
+        userRole = entityManager.merge(userRole);
+
+        Set<Role> roles = new HashSet<>();
+        roles.add(userRole);
+        usuarioEntidad.setRoles(roles);
+
+        // Guarda el usuario en el repositorio
         User usuarioAPersistir = userRepository.save(usuarioEntidad);
-        //transformamos la entidad obtenida en salidaDto
-        UserDtoSalida userDtoSalida = modelMapper.map(usuarioAPersistir, UserDtoSalida.class);
-        LOGGER.info("UsuarioSalidaDto: " + JsonPrinter.toString(userDtoSalida));
-        return userDtoSalida;
+
+        TokenSalidaDto tokenSalidaDto = modelMapper.map(usuarioAPersistir, TokenSalidaDto.class);
+
+        // Crea y retorna el DTO de salida con el token
+        new TokenSalidaDto(
+                usuarioAPersistir.getId(),
+                usuarioAPersistir.getUsername(),
+                usuarioAPersistir.getLastname(),
+                usuarioAPersistir.getEmail(),
+                usuarioAPersistir.getFirstname(),
+                usuarioAPersistir.getArticles(),
+                usuarioAPersistir.getFavourites(),
+                new ArrayList<>(usuarioAPersistir.getRoles())
+        );
+
+        return tokenSalidaDto;
     }
-//    @Transactional
-//    @Override
-//    public TokenSalidaDto createUser(UserDTO userDtoEntrada) throws DataIntegrityViolationException {
-//        // Mapeo del DTO de usuario a la entidad User
-//        User user = modelMapper.map(userDtoEntrada, User.class);
-//
-//        // Encriptar la contraseña del usuario
-//        String contraseñaEncriptada = passwordEncoder.encode(user.getPassword());
-//        user.setPassword(contraseñaEncriptada);
-//
-//        // Buscar el rol de usuario y crearlo si no existe
-//        Role role = rolRepository.findByRol(RoleConstants.USER)
-//                .orElseGet(() -> rolRepository.save(new Role(RoleConstants.USER)));
-//
-//        // Asignar el rol al usuario
-//        Set<Role> roles = new HashSet<>();
-//        roles.add(role);
-//        user.setRoles(roles);
-//
-//        // Guardar el usuario en la base de datos
-//        User userSaved = userRepository.save(user);
-//
-//        // Generar el token JWT para el usuario guardado
-//        String token = jwtService.generateToken(userSaved);
-//
-//        // Crear el DTO de salida con los datos del usuario y el token
-//        TokenSalidaDto tokenDtoSalida = new TokenSalidaDto(
-//                userSaved.getId(),
-//                userSaved.getUsername(),
-//                userSaved.getFirstname(),
-//                userSaved.getLastname(),
-//                new ArrayList<>(userSaved.getRoles()),
-//                token
-//        );
-//
-//        return tokenDtoSalida;
-//    }
-//
-//
-//    @Transactional
-//    @Override
-//    public TokenSalidaDto createUserAdmin(UserAdminEntradaDto userAdminDtoEntrance) throws DataIntegrityViolationException
-//             {
-//        User user = modelMapper.map(userAdminDtoEntrance, User.class);
-//        String contraseñaEncriptada = passwordEncoder.encode(user.getPassword());
-//        user.setPassword(contraseñaEncriptada);
-//        Role role = rolRepository.findByRol(RoleConstants.ADMIN)
-//                .orElseGet(() -> rolRepository.save(new Role(RoleConstants.ADMIN)));
-//        Set<Role> roles = new HashSet<>();
-//        roles.add(role);
-//        user.setRoles(roles);
-//        String token = jwtService.generateToken(user);
-//        User userSaved = userRepository.save(user);
-//        TokenSalidaDto tokenDtoSalida = new TokenSalidaDto(
-//                userSaved.getId(),
-//                userSaved.getUsername(),
-//                userSaved.getFirstname(),
-//                userSaved.getLastname(),
-//                new ArrayList<>(userSaved.getRoles()),
-//                token
-//        );
-//
-//
-//        return tokenDtoSalida;
-//    }
-//    @Override
-//    public TokenSalidaDto loginUserAndCheckEmail(LoginEntradaDto loginDtoEntrance) throws ResourceNotFoundException, AuthenticationException {
-//        Optional<User> userOptional = userRepository.findByEmail(loginDtoEntrance.getEmail());
-//        if (userOptional.isEmpty()) {
-//            throw new ResourceNotFoundException("Usuario no encontrado con el correo electrónico proporcionado.");
-//        }
-//        Authentication authentication = authenticationManager.authenticate(
-//                new UsernamePasswordAuthenticationToken(loginDtoEntrance.getEmail(), loginDtoEntrance.getPassword())
-//        );
-//        SecurityContextHolder.getContext().setAuthentication(authentication);
-//        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-//        String token = jwtService.generateToken(userDetails);
-//        User user = userOptional.get();
-//        TokenSalidaDto tokenDtoSalida = new TokenSalidaDto(
-//                user.getId(),
-//                user.getUsername(),
-//                user.getFirstname(),
-//                user.getLastname(),
-//                new ArrayList<>(user.getRoles()),
-//                token
-//        );
-//        return tokenDtoSalida;
-//    }
 
     @Override
+    @Transactional
     public UserDtoSalida buscarUsuarioPorId(Long id) {
         User usuarioBuscado = userRepository.findById(id).orElse(null);
-        UserDtoSalida usuarioEncontrado = null;
 
-        if(usuarioBuscado != null){
-            usuarioEncontrado = modelMapper.map(usuarioBuscado, UserDtoSalida.class);
+        if (usuarioBuscado == null) {
+            LOGGER.error("El id no se encuentra registrado en la base de datos");
+            return null;
+        }
 
-        }else LOGGER.error("El id no se encuentra registrao en la base de datos");
-        return  usuarioEncontrado;
+        // Inicializa las colecciones perezosas
+        Hibernate.initialize(usuarioBuscado.getArticles());
+
+        // Mapea el usuario a su DTO
+        UserDtoSalida usuarioEncontrado = modelMapper.map(usuarioBuscado, UserDtoSalida.class);
+
+        return usuarioEncontrado;
     }
 
     @Override
@@ -213,6 +164,54 @@ public class UserService implements IUserService {
         return modelMapper.map(userRepository.findByEmail(email), UserDtoSalida.class);
     }
 
+    @Transactional
+    @Override
+    public TokenSalidaDto registrarAdmin(UserAdminEntradaDto userAdminEntradaDto) {
+        if (userRepository.existsByUsername(userAdminEntradaDto.getUsername())) {
+            throw new RuntimeException("El username ya se encuentra registrado");
+        }
+
+        LOGGER.info("UsuarioEntradaDto: " + JsonPrinter.toString(userAdminEntradaDto));
+
+        // Mapea el DTO de entrada a la entidad User
+        User usuarioEntidad = modelMapper.map(userAdminEntradaDto, User.class);
+
+        // Asigna el rol ADMIN al usuario
+        Role adminRole = rolRepository.findByRol(RoleConstants.ADMIN)
+                .orElseGet(() -> new Role(RoleConstants.ADMIN));
+
+        if (adminRole.getIdRol() == null) {
+            adminRole = rolRepository.save(adminRole);  // Guarda el rol si no existe
+        }
+
+        // Asegúrate de que el rol esté gestionado por el EntityManager
+        adminRole = entityManager.merge(adminRole);
+
+        Set<Role> roles = new HashSet<>();
+        roles.add(adminRole);
+        usuarioEntidad.setRoles(roles);
+
+        // Guarda el usuario en el repositorio
+        User usuarioAPersistir = userRepository.save(usuarioEntidad);
+
+        TokenSalidaDto tokenSalidaDto = modelMapper.map(usuarioAPersistir, TokenSalidaDto.class);
+
+        // Crea y retorna el DTO de salida con el token
+                 new TokenSalidaDto(
+                usuarioAPersistir.getId(),
+                usuarioAPersistir.getUsername(),
+                usuarioAPersistir.getLastname(),
+                usuarioAPersistir.getEmail(),
+                usuarioAPersistir.getFirstname(),
+                new ArrayList<>(usuarioAPersistir.getRoles())
+        );
+
+        return tokenSalidaDto;
+    }
+
+
+
+
 
 
     private void configureMapping() {
@@ -220,7 +219,31 @@ public class UserService implements IUserService {
                 .addMappings(mapper -> mapper.map(UserDTO::getArticlesDto, User::setArticles));
         modelMapper.typeMap(User.class, UserDtoSalida.class)
                 .addMappings(mapper -> mapper.map(User::getArticles, UserDtoSalida::setArticlesSalida));
+        modelMapper.typeMap(User.class, TokenSalidaDto.class)
+                .addMappings(mapper->mapper.map(User::getArticles, TokenSalidaDto::setArticlesSalida));
         modelMapper.typeMap(UserModificacionEntradaDTO.class, User.class)
                 .addMappings(mapper -> mapper.map(UserModificacionEntradaDTO::getArticlesModificaionEntradaDto, User::setArticles));
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        User user = userRepository.findUserByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("El usuario " + username + " no existe"));
+
+        List<SimpleGrantedAuthority> authorityList = new ArrayList<>();
+        user.getRoles().forEach(role -> authorityList.add(new SimpleGrantedAuthority("ROLE_" + role.getRol())));
+        user.getRoles().stream()
+                .flatMap(role -> role.getPermisosList().stream())
+                .forEach(permission -> authorityList.add(new SimpleGrantedAuthority(permission.getName())));
+
+        return new org.springframework.security.core.userdetails.User(
+                user.getUsername(),
+                user.getPassword(),
+                user.isAccountNonLocked(),
+                user.isEnabled(),
+                user.isAccountNonLocked(),
+                user.isAccountNonExpired(),
+                authorityList
+        );
     }
 }

@@ -18,6 +18,7 @@ import org.apache.coyote.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -26,6 +27,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/articulos")
+@PreAuthorize("denyAll()")
 public class ArticleController {
 
     private IArticleService articleService;
@@ -34,19 +36,22 @@ public class ArticleController {
     public ArticleController(IArticleService articleService){
         this.articleService = articleService ;
     }
-    @GetMapping()
+    @GetMapping("/listar")
     @CrossOrigin(origins = "http://localhost:3000")
+    @PreAuthorize("permitAll()")
     public ResponseEntity<List<ArticleDtoSalida>> listarArticulos(){
         return   new ResponseEntity<>(articleService.listarArticulos(), HttpStatus.OK);
     }
 
-    @PostMapping()
+    @PostMapping("/crear")
+    @PreAuthorize("hasAuthority('CREATE')")
     @CrossOrigin(origins = "http://localhost:3000")
     public ResponseEntity<ArticleDtoSalida> crearArticulo(@RequestBody ArticleDTO articulo) throws ResourceNotFoundException {
         return  new ResponseEntity<>(articleService.crearArticulo(articulo), HttpStatus.CREATED);
     }
 
     @GetMapping("/ultimos-cuatro")
+    @PreAuthorize("permitAll()")
     @CrossOrigin(origins = "http://localhost:3000")
     public List<ArticleAuthorSalidaDto> getLatestArticles() {
         return articleService.getLatestArticles();
@@ -54,6 +59,7 @@ public class ArticleController {
 
 
     @GetMapping(path = "/{id}")
+    @PreAuthorize("permitAll()")
     @CrossOrigin(origins = "http://localhost:3000")
     public ResponseEntity<ArticleDtoSalida> listarArticulosPorId(@PathVariable Long id){
         try {
@@ -70,6 +76,7 @@ public class ArticleController {
 
     @CrossOrigin(origins = "http://localhost:3000")
     @DeleteMapping("/delete/{id}")
+    @PreAuthorize("hasAuthority('DELETE')")
     public ResponseEntity<String> eliminarArticulo(@PathVariable Long id) {
         try {
             articleService.eliminarArticulo(id);
@@ -80,6 +87,7 @@ public class ArticleController {
     }
     @CrossOrigin(origins = "http://localhost:3000")
     @PutMapping("/update/{id}")
+    @PreAuthorize("hasAuthority('UPDATE')")
     public ResponseEntity<?> actualizarArticulo(@Valid @RequestBody ArticleModificacionEntradaDTO articleModificacionEntradaDTO, @PathVariable Long id) throws ResourceNotFoundException {
         // Llamar al servicio para actualizar el artículo
         ArticleDtoSalida articleDtoSalida = articleService.actualizarArticulo(articleModificacionEntradaDTO, id);
